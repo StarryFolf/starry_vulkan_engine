@@ -1,6 +1,21 @@
 use std::sync::Arc;
 
-use vulkano::{pipeline::{GraphicsPipeline, graphics::{vertex_input::Vertex, input_assembly::{InputAssemblyState, PrimitiveTopology}, viewport::ViewportState, rasterization::RasterizationState, multisample::MultisampleState, color_blend::ColorBlendState}}, shader::ShaderModule, device::Device, render_pass::{RenderPass, Subpass}};
+use vulkano::{
+    device::Device,
+    pipeline::{
+        graphics::{
+            color_blend::ColorBlendState,
+            input_assembly::{InputAssemblyState, PrimitiveTopology},
+            multisample::MultisampleState,
+            rasterization::RasterizationState,
+            vertex_input::Vertex,
+            viewport::ViewportState,
+        },
+        GraphicsPipeline,
+    },
+    render_pass::{RenderPass, Subpass},
+    shader::ShaderModule,
+};
 
 use crate::engine::resources::vertex::StarryVertex;
 
@@ -11,12 +26,14 @@ impl StarryPipeline {
         vertex_shader: Arc<ShaderModule>,
         fragment_shader: Arc<ShaderModule>,
         device: Arc<Device>,
-        render_pass: Arc<RenderPass>
+        render_pass: Arc<RenderPass>,
     ) -> Arc<GraphicsPipeline> {
         GraphicsPipeline::start()
             .vertex_input_state(StarryVertex::per_vertex())
             .vertex_shader(vertex_shader.entry_point("main").unwrap(), ())
-            .input_assembly_state(InputAssemblyState::new().topology(PrimitiveTopology::TriangleList))
+            .input_assembly_state(
+                InputAssemblyState::new().topology(PrimitiveTopology::TriangleList),
+            )
             .viewport_state(ViewportState::viewport_dynamic_scissor_irrelevant())
             .rasterization_state(RasterizationState::default())
             .multisample_state(MultisampleState::default())

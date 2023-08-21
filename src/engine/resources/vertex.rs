@@ -6,6 +6,5 @@ pub struct StarryVertex {
     #[format(R32G32_SFLOAT)]
     pub position: [f32; 2],
     #[format(R32G32B32A32_SFLOAT)]
-    pub color: [f32; 4]
+    pub color: [f32; 4],
 }
-

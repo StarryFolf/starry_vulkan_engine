@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use cgmath::{Vector2, Matrix2};
-use vulkano::{shader::ShaderModule, device::Device};
+use cgmath::{Matrix2, Vector2};
+use vulkano::{device::Device, shader::ShaderModule};
 
 pub mod vs {
     vulkano_shaders::shader! {
@@ -20,19 +20,21 @@ pub mod fs {
 pub struct StarryShader;
 
 impl StarryShader {
-    pub fn load_vertex_shader(device: Arc<Device>) -> Arc<ShaderModule>{
+    pub fn load_vertex_shader(device: Arc<Device>) -> Arc<ShaderModule> {
         vs::load(device).unwrap()
     }
 
-    pub fn load_fragment_shader(device: Arc<Device>) -> Arc<ShaderModule>{
+    pub fn load_fragment_shader(device: Arc<Device>) -> Arc<ShaderModule> {
         fs::load(device).unwrap()
     }
 
-    pub fn create_push_constant_data_struct(transform: Matrix2<f32>, offset: Vector2<f32>) -> vs::PushConstantData
-    {
+    pub fn create_push_constant_data_struct(
+        transform: Matrix2<f32>,
+        offset: Vector2<f32>,
+    ) -> vs::PushConstantData {
         vs::PushConstantData {
             transform: transform.into(),
-            offset: offset.into()
+            offset: offset.into(),
         }
     }
 }

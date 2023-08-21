@@ -21,12 +21,13 @@ use winit::{
 };
 
 use crate::engine::{
+    game::game_object::{StarryGameObject, Transform2DComponent},
     rendering::{
         command_buffer::StarryCommandBuffer, device::StarryDevice, pipeline::StarryPipeline,
         render_pass::StarryRenderPass, shader::StarryShader, surface::StarrySurface,
         swapchain::StarrySwapchain,
     },
-    resources::{model::StarryModel, vertex::StarryVertex}, game::game_object::{StarryGameObject, Transform2DComponent},
+    resources::{model::StarryModel, vertex::StarryVertex},
 };
 
 fn main() {
@@ -60,32 +61,32 @@ fn main() {
         Box::new([
             StarryVertex {
                 position: [0.5, -0.5],
-                color: [1.0, 0.0, 0.0, 1.0]
+                color: [1.0, 0.0, 0.0, 1.0],
             },
             StarryVertex {
                 position: [0.5, 0.5],
-                color: [0.0, 1.0, 0.0, 1.0]
+                color: [0.0, 1.0, 0.0, 1.0],
             },
             StarryVertex {
                 position: [-0.5, 0.5],
-                color: [0.0, 0.0, 1.0, 1.0]
+                color: [0.0, 0.0, 1.0, 1.0],
             },
             StarryVertex {
                 position: [-0.5, -0.5],
-                color: [1.0, 1.0, 1.0, 1.0]
+                color: [1.0, 1.0, 1.0, 1.0],
             },
         ]),
         Box::new([3, 0, 1, 1, 2, 3]),
-        &memory_allocator
+        &memory_allocator,
     );
 
     let mut quad = StarryGameObject::create_new_game_object_with_transform(
-        model, 
+        model,
         Transform2DComponent {
             translation: Vector2 { x: 0.0, y: 0.0 },
             scale: Vector2 { x: 0.5, y: 1.5 },
             rotation: 90.0,
-        }
+        },
     );
 
     let vs = StarryShader::load_vertex_shader(device.clone());
@@ -158,11 +159,8 @@ fn main() {
 
                     // Because framebuffers contains a reference to the old swapchain, we need to
                     // recreate framebuffers as well.
-                    frame_buffers = redraw_swapchain(
-                        &new_images,
-                        render_pass.clone(),
-                        &mut viewport,
-                    );
+                    frame_buffers =
+                        redraw_swapchain(&new_images, render_pass.clone(), &mut viewport);
 
                     recreate_swapchain = false;
                 }
@@ -204,7 +202,7 @@ fn main() {
                     StarryShader::create_push_constant_data_struct(
                         quad.transform.get_2d_transform_matrix(),
                         quad.transform.translation,
-                    )
+                    ),
                 );
 
                 let future = previous_frame_end

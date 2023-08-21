@@ -1,4 +1,4 @@
-use cgmath::{Vector2, Matrix2, Angle, Deg};
+use cgmath::{Angle, Deg, Matrix2, Vector2};
 
 use crate::engine::resources::model::StarryModel;
 
@@ -20,12 +20,18 @@ impl Transform2DComponent {
 
         let rotation_matrix = Matrix2 {
             x: Vector2 { x: c, y: s },
-            y: Vector2 { x: -s, y: c }
+            y: Vector2 { x: -s, y: c },
         };
 
-        let scale_matrix = Matrix2 { 
-            x: Vector2 { x: self.scale.x, y: 0.0 }, 
-            y: Vector2 { x: 0.0, y: self.scale.y } 
+        let scale_matrix = Matrix2 {
+            x: Vector2 {
+                x: self.scale.x,
+                y: 0.0,
+            },
+            y: Vector2 {
+                x: 0.0,
+                y: self.scale.y,
+            },
         };
 
         rotation_matrix * scale_matrix
@@ -35,7 +41,7 @@ impl Transform2DComponent {
 pub struct StarryGameObject {
     id: u32,
     pub model: StarryModel,
-    pub transform: Transform2DComponent
+    pub transform: Transform2DComponent,
 }
 
 impl StarryGameObject {
@@ -43,11 +49,11 @@ impl StarryGameObject {
         Self {
             id,
             model,
-            transform: Transform2DComponent { 
-                translation: Vector2 { x: 0.0, y: 0.0 }, 
+            transform: Transform2DComponent {
+                translation: Vector2 { x: 0.0, y: 0.0 },
                 scale: Vector2 { x: 1.0, y: 1.0 },
                 rotation: 0.0,
-            }
+            },
         }
     }
 
@@ -55,18 +61,21 @@ impl StarryGameObject {
         Self {
             id,
             model,
-            transform
+            transform,
         }
     }
 
-    pub fn create_new_game_object(model: StarryModel) -> Self{
+    pub fn create_new_game_object(model: StarryModel) -> Self {
         unsafe {
             CURRENT_ID += 1;
             StarryGameObject::new(CURRENT_ID, model)
         }
     }
 
-    pub fn create_new_game_object_with_transform(model: StarryModel, transform: Transform2DComponent) -> Self{
+    pub fn create_new_game_object_with_transform(
+        model: StarryModel,
+        transform: Transform2DComponent,
+    ) -> Self {
         unsafe {
             CURRENT_ID += 1;
             StarryGameObject::new_with_transform(CURRENT_ID, model, transform)
