@@ -3,7 +3,7 @@ use std::sync::Arc;
 use vulkano::{
     device::Device,
     image::{ImageUsage, SwapchainImage},
-    swapchain::{Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError},
+    swapchain::{Surface, Swapchain, SwapchainCreateInfo, SwapchainCreationError, PresentMode},
 };
 use winit::dpi::PhysicalSize;
 
@@ -44,6 +44,7 @@ impl StarrySwapchain {
                 image_extent: StarrySurface::get_extent(surface.clone()).into(),
                 min_image_count: surface_capabilities.min_image_count,
                 image_usage: ImageUsage::COLOR_ATTACHMENT,
+                present_mode: PresentMode::Fifo,
                 ..Default::default()
             },
         )

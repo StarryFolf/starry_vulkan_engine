@@ -1,9 +1,9 @@
 pub mod app;
 pub mod engine;
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 
-use cgmath::Vector2;
+use cgmath::Vector3;
 use vulkano::{
     command_buffer::allocator::StandardCommandBufferAllocator,
     image::{view::ImageView, ImageAccess, SwapchainImage},
@@ -21,7 +21,8 @@ use winit::{
 };
 
 use crate::engine::{
-    game::game_object::{StarryGameObject, Transform2DComponent},
+    camera::StarryCamera,
+    game::game_object::{StarryGameObject, TransformComponent},
     rendering::{
         command_buffer::StarryCommandBuffer, device::StarryDevice, pipeline::StarryPipeline,
         render_pass::StarryRenderPass, shader::StarryShader, surface::StarrySurface,
@@ -46,7 +47,13 @@ fn main() {
 
     let event_loop = EventLoop::new();
 
-    let surface = StarrySurface::new(800, 800, "Hello", &event_loop, instance.clone());
+    let surface = StarrySurface::new(
+        800,
+        800,
+        "Starry Vulkan Engine",
+        &event_loop,
+        instance.clone(),
+    );
 
     let (device, mut queues) = StarryDevice::create_device_and_queues(instance, surface.clone());
 
@@ -57,35 +64,53 @@ fn main() {
 
     let memory_allocator = StandardMemoryAllocator::new_default(device.clone());
 
+    let command_buffers_allocator =
+        StandardCommandBufferAllocator::new(device.clone(), Default::default());
+
     let model = StarryModel::new(
         Box::new([
             StarryVertex {
-                position: [0.5, -0.5],
+                position: [0.5, -0.5, 0.0],
                 color: [1.0, 0.0, 0.0, 1.0],
             },
             StarryVertex {
-                position: [0.5, 0.5],
+                position: [0.5, 0.5, 0.0],
                 color: [0.0, 1.0, 0.0, 1.0],
             },
             StarryVertex {
-                position: [-0.5, 0.5],
+                position: [-0.5, 0.5, 0.0],
                 color: [0.0, 0.0, 1.0, 1.0],
             },
             StarryVertex {
-                position: [-0.5, -0.5],
+                position: [-0.5, -0.5, 0.0],
                 color: [1.0, 1.0, 1.0, 1.0],
             },
         ]),
         Box::new([3, 0, 1, 1, 2, 3]),
         &memory_allocator,
+        &command_buffers_allocator,
+        queue.clone().queue_family_index(),
+        queue.clone(),
     );
 
     let mut quad = StarryGameObject::create_new_game_object_with_transform(
         model,
-        Transform2DComponent {
-            translation: Vector2 { x: 0.0, y: 0.0 },
-            scale: Vector2 { x: 0.5, y: 1.5 },
-            rotation: 90.0,
+        TransformComponent {
+            translation: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 2.0,
+            },
+            scale: Vector3 {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            },
+            rotation: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
         },
     );
 
@@ -110,14 +135,57 @@ fn main() {
 
     let mut frame_buffers = redraw_swapchain(&images, render_pass.clone(), &mut viewport);
 
-    let command_buffers_allocator =
-        StandardCommandBufferAllocator::new(device.clone(), Default::default());
-
     let mut recreate_swapchain = false;
 
     let mut previous_frame_end = Some(sync::now(device.clone()).boxed());
 
+    let mut camera = StarryCamera::new();
+    // camera.set_view_direction(
+    //     Vector3::zero(),
+    //     Vector3 { x: 0.5, y: 0.0, z: 1.0 },
+    //     Vector3 { x: 0.0, y: -1.0, z: 0.0 }
+    // );
+
+    camera.set_view_target(
+        Vector3 {
+            x: 10.0,
+            y: -10.0,
+            z: 10.0,
+        },
+        quad.transform.translation,
+        Vector3 {
+            x: 0.0,
+            y: -1.0,
+            z: 0.0,
+        },
+    );
+
+    let mut view_object = StarryGameObject::create_new_game_object(
+        StarryModel::new(
+            Box::new([
+                StarryVertex {
+                color: [0.0, 0.0, 0.0, 0.0],
+                position: [0.0, 0.0, 0.0]
+                }
+            ]), 
+            Box::new([0, 0, 0]), 
+            &memory_allocator,
+            &command_buffers_allocator,
+            queue.clone().queue_family_index(),
+            queue.clone()
+        )
+    );
+
+    println!("{:?}", view_object.transform.translation);
+
+    // let mut current_scale = 0.0;
+
+    let mut current_time = Instant::now();
+
     event_loop.run(move |event, _, control_flow| {
+        let new_time = Instant::now();
+        let frame_time = (new_time - current_time).as_secs_f32();
+
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
@@ -133,7 +201,16 @@ fn main() {
                 recreate_swapchain = true;
             }
 
+            Event::WindowEvent {
+                event: WindowEvent::KeyboardInput { input, .. },
+                ..
+            } => {
+                view_object.move_in_plane_xz(frame_time, input, 180.0, 5.0);
+            }
+
             Event::RedrawEventsCleared => {
+                current_time = new_time;
+
                 let window_dimensions = StarrySurface::get_extent(surface.clone());
 
                 if window_dimensions.height == 0 || window_dimensions.width == 0 {
@@ -189,7 +266,17 @@ fn main() {
                 //     vertex_buffer.clone(),
                 // );
 
-                quad.transform.rotation = (quad.transform.rotation + 1.0) % 360.0;
+                quad.transform.rotation.x = (quad.transform.rotation.x + 180.0 * frame_time) % 360.0;
+                quad.transform.rotation.z = (quad.transform.rotation.z + 180.0 * frame_time) % 360.0;
+                quad.transform.rotation.y = (quad.transform.rotation.y - 180.0 * frame_time) % 360.0;
+
+                let extent = swapchain.image_extent();
+                let aspect = extent[0] as f32 / extent[1] as f32;
+                // camera.set_orthographic_projection(-aspect, aspect, -1.0, 1.0, -1.0, 1.0);
+                camera.set_perspective_projection(50.0, aspect, 0.1, 100.0);
+                camera.set_view_xyz(view_object.transform.translation, view_object.transform.rotation);
+
+                let projection_view = camera.get_projection_matrix() * camera.get_view_matrix();
 
                 let command_buffer = StarryCommandBuffer::create_command_buffer_with_push_constant(
                     &command_buffers_allocator,
@@ -200,8 +287,7 @@ fn main() {
                     graphics_pipeline.clone(),
                     quad.model.clone(),
                     StarryShader::create_push_constant_data_struct(
-                        quad.transform.get_2d_transform_matrix(),
-                        quad.transform.translation,
+                        projection_view * quad.transform.get_transform_matrix(),
                     ),
                 );
 

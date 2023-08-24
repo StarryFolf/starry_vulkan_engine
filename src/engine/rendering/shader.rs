@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use cgmath::{Matrix2, Vector2};
+use cgmath::Matrix4;
 use vulkano::{device::Device, shader::ShaderModule};
 
 pub mod vs {
@@ -28,13 +28,9 @@ impl StarryShader {
         fs::load(device).unwrap()
     }
 
-    pub fn create_push_constant_data_struct(
-        transform: Matrix2<f32>,
-        offset: Vector2<f32>,
-    ) -> vs::PushConstantData {
+    pub fn create_push_constant_data_struct(transform: Matrix4<f32>) -> vs::PushConstantData {
         vs::PushConstantData {
             transform: transform.into(),
-            offset: offset.into(),
         }
     }
 }
