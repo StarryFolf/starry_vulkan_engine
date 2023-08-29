@@ -9,12 +9,12 @@ use vulkano::{
             multisample::MultisampleState,
             rasterization::RasterizationState,
             vertex_input::Vertex,
-            viewport::ViewportState,
+            viewport::{ViewportState, Viewport}, depth_stencil::DepthStencilState,
         },
         GraphicsPipeline,
     },
     render_pass::{RenderPass, Subpass},
-    shader::ShaderModule,
+    shader::ShaderModule
 };
 
 use crate::engine::resources::vertex::StarryVertex;
@@ -39,8 +39,9 @@ impl StarryPipeline {
             .multisample_state(MultisampleState::default())
             .color_blend_state(ColorBlendState::default())
             .fragment_shader(fragment_shader.entry_point("main").unwrap(), ())
+            .depth_stencil_state(DepthStencilState::simple_depth_test())
             .render_pass(Subpass::from(render_pass, 0).unwrap())
-            .build(device)
+            .build(device.clone())
             .unwrap()
     }
 }

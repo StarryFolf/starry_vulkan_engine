@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use vulkano::{device::Device, render_pass::RenderPass, swapchain::Swapchain};
+use vulkano::{device::Device, render_pass::RenderPass, swapchain::Swapchain, format::Format};
 
 pub struct StarryRenderPass {}
 
@@ -17,11 +17,17 @@ impl StarryRenderPass {
                 store: Store,
                 format: swapchain.image_format(),
                 samples: 1,
+            },
+            depth: {
+                load: Clear,
+                store: DontCare,
+                format: Format::D32_SFLOAT,
+                samples: 1,
             }
         },
         pass: {
             color: [color],
-            depth_stencil: {}
+            depth_stencil: {depth}
         }
         )
         .unwrap()

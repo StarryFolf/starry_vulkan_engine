@@ -21,7 +21,7 @@ impl TransformComponent {
         let z_rotation_matrix = Matrix4::from_angle_z(Deg(self.rotation.z));
 
         let scale_matrix = Matrix4::from_nonuniform_scale(self.scale.x, self.scale.y, self.scale.z);
-        let transform_matrix = translation_matrix * x_rotation_matrix * y_rotation_matrix * z_rotation_matrix * scale_matrix;
+        let transform_matrix = translation_matrix * y_rotation_matrix * x_rotation_matrix * z_rotation_matrix * scale_matrix;
         transform_matrix
     }
 }

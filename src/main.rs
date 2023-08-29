@@ -5,15 +5,15 @@ use std::{sync::Arc, time::Instant};
 
 use cgmath::Vector3;
 use vulkano::{
-    command_buffer::allocator::StandardCommandBufferAllocator,
-    image::{view::ImageView, ImageAccess, SwapchainImage},
+    command_buffer::{allocator::StandardCommandBufferAllocator, CommandBufferUsage, AutoCommandBufferBuilder, PrimaryCommandBufferAbstract},
+    image::{view::ImageView, ImageAccess, SwapchainImage, AttachmentImage},
     instance::{Instance, InstanceCreateInfo},
     memory::allocator::StandardMemoryAllocator,
-    pipeline::graphics::viewport::Viewport,
+    pipeline::{graphics::viewport::Viewport, Pipeline, GraphicsPipeline},
     render_pass::{Framebuffer, FramebufferCreateInfo, RenderPass},
     swapchain::{acquire_next_image, AcquireError, SwapchainCreationError, SwapchainPresentInfo},
     sync::{self, FlushError, GpuFuture},
-    VulkanLibrary,
+    VulkanLibrary, descriptor_set::{PersistentDescriptorSet, allocator::StandardDescriptorSetAllocator, WriteDescriptorSet}, format::Format, shader::ShaderModule, device::Device,
 };
 use winit::{
     event::{Event, WindowEvent},
@@ -25,11 +25,14 @@ use crate::engine::{
     game::game_object::{StarryGameObject, TransformComponent},
     rendering::{
         command_buffer::StarryCommandBuffer, device::StarryDevice, pipeline::StarryPipeline,
-        render_pass::StarryRenderPass, shader::StarryShader, surface::StarrySurface,
+        render_pass::StarryRenderPass, surface::StarrySurface,
         swapchain::StarrySwapchain,
     },
-    resources::{model::StarryModel, vertex::StarryVertex},
+    resources::{model::StarryModel, vertex::StarryVertex, texture::StarryTexture},
 };
+
+create_shader!("vertex", "assets/shaders/shader.vert", vs);
+create_shader!("fragment", "assets/shaders/shader.frag", fs);
 
 fn main() {
     let library = VulkanLibrary::new().unwrap();
@@ -57,6 +60,8 @@ fn main() {
 
     let (device, mut queues) = StarryDevice::create_device_and_queues(instance, surface.clone());
 
+    // StarryTexture::create_image(device.clone());
+
     let queue = queues.next().expect("No queues available.");
 
     let (mut swapchain, images) =
@@ -67,33 +72,24 @@ fn main() {
     let command_buffers_allocator =
         StandardCommandBufferAllocator::new(device.clone(), Default::default());
 
-    let model = StarryModel::new(
-        Box::new([
-            StarryVertex {
-                position: [0.5, -0.5, 0.0],
-                color: [1.0, 0.0, 0.0, 1.0],
-            },
-            StarryVertex {
-                position: [0.5, 0.5, 0.0],
-                color: [0.0, 1.0, 0.0, 1.0],
-            },
-            StarryVertex {
-                position: [-0.5, 0.5, 0.0],
-                color: [0.0, 0.0, 1.0, 1.0],
-            },
-            StarryVertex {
-                position: [-0.5, -0.5, 0.0],
-                color: [1.0, 1.0, 1.0, 1.0],
-            },
-        ]),
-        Box::new([3, 0, 1, 1, 2, 3]),
+    let descriptor_set_allocator = StandardDescriptorSetAllocator::new(device.clone());
+
+    let mut texture_builder = AutoCommandBufferBuilder::primary(
+        &command_buffers_allocator,
+        queue.queue_family_index(),
+        CommandBufferUsage::OneTimeSubmit,
+    )
+    .unwrap();
+
+    let model = StarryModel::create_model_from_file(
+        "assets/models/viking_room.obj",
         &memory_allocator,
         &command_buffers_allocator,
-        queue.clone().queue_family_index(),
         queue.clone(),
     );
 
-    let mut quad = StarryGameObject::create_new_game_object_with_transform(
+    #[allow(unused_mut)]
+    let mut object = StarryGameObject::create_new_game_object_with_transform(
         model,
         TransformComponent {
             translation: Vector3 {
@@ -102,30 +98,23 @@ fn main() {
                 z: 2.0,
             },
             scale: Vector3 {
-                x: 1.0,
-                y: 1.0,
-                z: 1.0,
+                x: 0.5,
+                y: 0.5,
+                z: 0.5,
             },
             rotation: Vector3 {
-                x: 0.0,
-                y: 0.0,
+                x: 90.0,
+                y: 180.0,
                 z: 0.0,
             },
         },
     );
 
-    let vs = StarryShader::load_vertex_shader(device.clone());
-    let fs = StarryShader::load_fragment_shader(device.clone());
+    let vs = vs::load(device.clone()).unwrap();
+    let fs = fs::load(device.clone()).unwrap();
 
     let render_pass =
         StarryRenderPass::create_single_pass_render_pass(device.clone(), swapchain.clone());
-
-    let graphics_pipeline = StarryPipeline::create_default_graphics_pipeline(
-        vs,
-        fs,
-        device.clone(),
-        render_pass.clone(),
-    );
 
     let mut viewport = Viewport {
         origin: [0.0, 0.0],
@@ -133,11 +122,15 @@ fn main() {
         depth_range: 0.0..1.0,
     };
 
-    let mut frame_buffers = redraw_swapchain(&images, render_pass.clone(), &mut viewport);
-
-    let mut recreate_swapchain = false;
-
-    let mut previous_frame_end = Some(sync::now(device.clone()).boxed());
+    let (mut graphics_pipeline ,mut frame_buffers) = redraw_frame_buffers_and_pipeline(
+        vs.clone(), 
+        fs.clone(), 
+        &memory_allocator, 
+        &images, 
+        render_pass.clone(), 
+        &mut viewport, 
+        device.clone()
+    );
 
     let mut camera = StarryCamera::new();
     // camera.set_view_direction(
@@ -152,7 +145,7 @@ fn main() {
             y: -10.0,
             z: 10.0,
         },
-        quad.transform.translation,
+        object.transform.translation,
         Vector3 {
             x: 0.0,
             y: -1.0,
@@ -162,25 +155,51 @@ fn main() {
 
     let mut view_object = StarryGameObject::create_new_game_object(
         StarryModel::new(
-            Box::new([
-                StarryVertex {
-                color: [0.0, 0.0, 0.0, 0.0],
-                position: [0.0, 0.0, 0.0]
-                }
-            ]), 
-            Box::new([0, 0, 0]), 
+            Box::new(
+                vec![StarryVertex {
+                    color: [0.0, 0.0, 0.0, 0.0],
+                    position: [0.0, 0.0, 0.0],
+                    normal: [0.0, 0.0, 0.0],
+                    uv: [0.0, 0.0]
+                }]
+            ), 
+            Box::new(vec![0, 0, 0]), 
             &memory_allocator,
             &command_buffers_allocator,
-            queue.clone().queue_family_index(),
             queue.clone()
         )
     );
 
-    println!("{:?}", view_object.transform.translation);
-
     // let mut current_scale = 0.0;
 
     let mut current_time = Instant::now();
+
+    let texture = StarryTexture::create_texture(
+        "assets/textures/viking_room.png", 
+        &memory_allocator, 
+        &mut texture_builder,
+    );
+
+    let sampler = StarryTexture::create_default_sampler(device.clone());
+
+    let layout = graphics_pipeline.layout().set_layouts().get(0).unwrap();
+    let set = PersistentDescriptorSet::new(
+        &descriptor_set_allocator,
+        layout.clone(),
+        [WriteDescriptorSet::image_view_sampler(0, texture, sampler)]
+    )
+    .unwrap();
+
+    let mut recreate_swapchain = false;
+
+    let mut previous_frame_end = Some(
+        texture_builder
+            .build()
+            .unwrap()
+            .execute(queue.clone())
+            .unwrap()
+            .boxed()
+    );
 
     event_loop.run(move |event, _, control_flow| {
         let new_time = Instant::now();
@@ -233,11 +252,20 @@ fn main() {
                         };
 
                     swapchain = new_swapchain;
+                    
+                    let (new_pipeline, new_framebuffers) = redraw_frame_buffers_and_pipeline(
+                        vs.clone(),
+                        fs.clone(),
+                        &memory_allocator,
+                        &new_images,
+                        render_pass.clone(),
+                        &mut viewport,
+                        device.clone()
+                    );
 
-                    // Because framebuffers contains a reference to the old swapchain, we need to
-                    // recreate framebuffers as well.
-                    frame_buffers =
-                        redraw_swapchain(&new_images, render_pass.clone(), &mut viewport);
+                    frame_buffers = new_framebuffers;
+
+                    graphics_pipeline = new_pipeline;
 
                     recreate_swapchain = false;
                 }
@@ -266,9 +294,9 @@ fn main() {
                 //     vertex_buffer.clone(),
                 // );
 
-                quad.transform.rotation.x = (quad.transform.rotation.x + 180.0 * frame_time) % 360.0;
-                quad.transform.rotation.z = (quad.transform.rotation.z + 180.0 * frame_time) % 360.0;
-                quad.transform.rotation.y = (quad.transform.rotation.y - 180.0 * frame_time) % 360.0;
+                // object.transform.rotation.x = (object.transform.rotation.x + 180.0 * frame_time) % 360.0;
+                // object.transform.rotation.z = (object.transform.rotation.z + 180.0 * frame_time) % 360.0;
+                // object.transform.rotation.y = (object.transform.rotation.y - 180.0 * frame_time) % 360.0;
 
                 let extent = swapchain.image_extent();
                 let aspect = extent[0] as f32 / extent[1] as f32;
@@ -278,17 +306,18 @@ fn main() {
 
                 let projection_view = camera.get_projection_matrix() * camera.get_view_matrix();
 
-                let command_buffer = StarryCommandBuffer::create_command_buffer_with_push_constant(
+                let command_buffer = StarryCommandBuffer::create_standard_command_buffer(
                     &command_buffers_allocator,
                     queue.queue_family_index(),
                     image_index,
                     frame_buffers.clone(),
                     viewport.clone(),
                     graphics_pipeline.clone(),
-                    quad.model.clone(),
-                    StarryShader::create_push_constant_data_struct(
-                        projection_view * quad.transform.get_transform_matrix(),
-                    ),
+                    object.model.clone(),
+                    vs::PushConstantData {
+                        transform: (projection_view * object.transform.get_transform_matrix()).into(),
+                    },
+                    set.clone()
                 );
 
                 let future = previous_frame_end
@@ -314,7 +343,8 @@ fn main() {
                     }
 
                     Err(e) => {
-                        panic!("Failed to flush future: {e}");
+                        println!("failed to flush future: {e}");
+                        previous_frame_end = Some(sync::now(device.clone()).boxed());
                     }
                 }
             }
@@ -323,27 +353,46 @@ fn main() {
         }
     });
 
-    fn redraw_swapchain(
+
+    fn redraw_frame_buffers_and_pipeline(
+        vs: Arc<ShaderModule>,
+        fs: Arc<ShaderModule>,
+        memory_allocator: &StandardMemoryAllocator,
         images: &[Arc<SwapchainImage>],
         render_pass: Arc<RenderPass>,
         viewport: &mut Viewport,
-    ) -> Vec<Arc<Framebuffer>> {
+        device: Arc<Device>
+    ) -> (Arc<GraphicsPipeline>, Vec<Arc<Framebuffer>>) {
         let dimensions = images[0].dimensions().width_height();
         viewport.dimensions = [dimensions[0] as f32, dimensions[1] as f32];
 
-        images
+        let depth_buffer = ImageView::new_default(
+            AttachmentImage::transient(memory_allocator, dimensions, Format::D32_SFLOAT).unwrap(),
+        )
+        .unwrap();
+
+        let frame_buffers = images
             .iter()
             .map(|image| {
                 let view = ImageView::new_default(image.clone()).unwrap();
                 Framebuffer::new(
                     render_pass.clone(),
                     FramebufferCreateInfo {
-                        attachments: vec![view],
+                        attachments: vec![view, depth_buffer.clone()],
                         ..Default::default()
                     },
                 )
                 .unwrap()
             })
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>();
+
+        let pipeline = StarryPipeline::create_default_graphics_pipeline(
+            vs, 
+            fs, 
+            device.clone(), 
+            render_pass
+        );
+
+        (pipeline, frame_buffers)
     }
 }

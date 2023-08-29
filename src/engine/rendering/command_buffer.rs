@@ -5,18 +5,16 @@ use vulkano::{
         allocator::StandardCommandBufferAllocator, AutoCommandBufferBuilder, CommandBufferUsage,
         PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassContents,
     },
-    pipeline::{graphics::viewport::Viewport, GraphicsPipeline, Pipeline},
-    render_pass::Framebuffer,
+    pipeline::{graphics::viewport::Viewport, GraphicsPipeline, Pipeline, PipelineBindPoint},
+    render_pass::Framebuffer, descriptor_set::PersistentDescriptorSet,
 };
 
-use crate::engine::resources::model::StarryModel;
-
-use super::shader::vs;
+use crate::{engine::resources::model::StarryModel, vs};
 
 pub struct StarryCommandBuffer;
 
 impl StarryCommandBuffer {
-    pub fn create_command_buffer(
+    pub fn create_default_command_buffer(
         command_buffers_allocator: &StandardCommandBufferAllocator,
         queue_family_index: u32,
         image_index: u32,
@@ -53,7 +51,7 @@ impl StarryCommandBuffer {
         builder.build().unwrap()
     }
 
-    pub fn create_command_buffer_with_push_constant(
+    pub fn create_standard_command_buffer(
         command_buffers_allocator: &StandardCommandBufferAllocator,
         queue_family_index: u32,
         image_index: u32,
@@ -62,6 +60,7 @@ impl StarryCommandBuffer {
         pipeline: Arc<GraphicsPipeline>,
         model: StarryModel,
         push_constants: vs::PushConstantData,
+        descriptor_sets: Arc<PersistentDescriptorSet>,
     ) -> PrimaryAutoCommandBuffer {
         let mut builder = AutoCommandBufferBuilder::primary(
             command_buffers_allocator,
@@ -73,7 +72,10 @@ impl StarryCommandBuffer {
         builder
             .begin_render_pass(
                 RenderPassBeginInfo {
-                    clear_values: vec![Some([0.0, 0.0, 0.0, 1.0].into())],
+                    clear_values: vec![
+                        Some([0.0, 0.0, 0.0, 1.0].into()),
+                        Some(1f32.into()),
+                    ],
                     ..RenderPassBeginInfo::framebuffer(frame_buffers[image_index as usize].clone())
                 },
                 SubpassContents::Inline,
@@ -81,6 +83,12 @@ impl StarryCommandBuffer {
             .unwrap()
             .set_viewport(0, [viewport])
             .bind_pipeline_graphics(pipeline.clone())
+            .bind_descriptor_sets(
+                PipelineBindPoint::Graphics, 
+                pipeline.layout().clone(), 
+                0, 
+                descriptor_sets
+            )
             .bind_vertex_buffers(0, model.vertex_buffer)
             .bind_index_buffer(model.index_buffer.clone())
             .push_constants(pipeline.layout().clone(), 0, push_constants)
