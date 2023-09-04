@@ -9,7 +9,7 @@ use vulkano::{
             multisample::MultisampleState,
             rasterization::RasterizationState,
             vertex_input::Vertex,
-            viewport::{ViewportState, Viewport}, depth_stencil::DepthStencilState,
+            viewport::ViewportState, depth_stencil::DepthStencilState,
         },
         GraphicsPipeline,
     },

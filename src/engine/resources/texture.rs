@@ -2,12 +2,10 @@ use std::{fs::File, sync::Arc};
 
 use png::Decoder;
 use vulkano::{
-    command_buffer::{
-        AutoCommandBufferBuilder, PrimaryAutoCommandBuffer,
-    },
+    command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer},
     device::Device,
     format::Format,
-    image::{view::ImageView, ImageDimensions, ImmutableImage, MipmapsCount, StorageImage, ImageUsage, ImageCreateFlags},
+    image::{view::ImageView, ImageDimensions, ImmutableImage, MipmapsCount},
     memory::allocator::MemoryAllocator,
     sampler::{Filter, Sampler, SamplerAddressMode, SamplerCreateInfo},
 };
@@ -18,9 +16,8 @@ impl StarryTexture {
     pub fn create_texture(
         img_path: &str,
         memory_allocator: &(impl MemoryAllocator + ?Sized),
-        command_buffers_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>
-    ) -> Arc<ImageView<ImmutableImage>>
-    {
+        command_buffers_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
+    ) -> Arc<ImageView<ImmutableImage>> {
         let image = File::open(img_path).unwrap();
         let decoder = Decoder::new(image);
         let mut reader = decoder.read_info().unwrap();

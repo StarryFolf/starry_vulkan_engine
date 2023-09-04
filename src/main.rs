@@ -1,7 +1,7 @@
 pub mod app;
 pub mod engine;
 
-use std::{sync::Arc, time::Instant};
+use std::{sync::Arc, time::{Instant, Duration}};
 
 use cgmath::Vector3;
 use vulkano::{
@@ -16,7 +16,7 @@ use vulkano::{
     VulkanLibrary, descriptor_set::{PersistentDescriptorSet, allocator::StandardDescriptorSetAllocator, WriteDescriptorSet}, format::Format, shader::ShaderModule, device::Device,
 };
 use winit::{
-    event::{Event, WindowEvent},
+    event::{Event, WindowEvent, ElementState},
     event_loop::{ControlFlow, EventLoop},
 };
 
@@ -172,8 +172,6 @@ fn main() {
 
     // let mut current_scale = 0.0;
 
-    let mut current_time = Instant::now();
-
     let texture = StarryTexture::create_texture(
         "assets/textures/viking_room.png", 
         &memory_allocator, 
@@ -201,10 +199,12 @@ fn main() {
             .boxed()
     );
 
-    event_loop.run(move |event, _, control_flow| {
-        let new_time = Instant::now();
-        let frame_time = (new_time - current_time).as_secs_f32();
+    let target_fps = 140.0;
+    let max_frame_time = Duration::from_secs_f32(1.0 / target_fps);
 
+    let mut previous_frame_time = Instant::now();
+
+    event_loop.run(move |event, _, control_flow| {
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
@@ -224,12 +224,21 @@ fn main() {
                 event: WindowEvent::KeyboardInput { input, .. },
                 ..
             } => {
-                view_object.move_in_plane_xz(frame_time, input, 180.0, 5.0);
+                let current_time = Instant::now();
+                let delta_time = current_time - previous_frame_time;
+                match input.state {
+                    ElementState::Pressed => {
+                        view_object.move_in_plane_xz(delta_time.as_secs_f64() as f32, input, 180.0, 5.0);
+                    }
+
+                    ElementState::Released => ()
+                }
             }
 
             Event::RedrawEventsCleared => {
-                current_time = new_time;
-
+            let current_time = Instant::now();
+            let delta_time = current_time - previous_frame_time;
+            previous_frame_time = current_time;
                 let window_dimensions = StarrySurface::get_extent(surface.clone());
 
                 if window_dimensions.height == 0 || window_dimensions.width == 0 {
@@ -294,9 +303,13 @@ fn main() {
                 //     vertex_buffer.clone(),
                 // );
 
-                // object.transform.rotation.x = (object.transform.rotation.x + 180.0 * frame_time) % 360.0;
-                // object.transform.rotation.z = (object.transform.rotation.z + 180.0 * frame_time) % 360.0;
-                // object.transform.rotation.y = (object.transform.rotation.y - 180.0 * frame_time) % 360.0;
+                object.transform.rotation.x = (object.transform.rotation.x + 90.0 * delta_time.as_secs_f64() as f32) % 360.0;
+                object.transform.rotation.z = (object.transform.rotation.z + 180.0 * delta_time.as_secs_f64() as f32) % 360.0;
+                object.transform.rotation.y = (object.transform.rotation.y - 270.0 * delta_time.as_secs_f64() as f32) % 360.0;
+
+                if delta_time < max_frame_time {
+                    std::thread::sleep(max_frame_time - delta_time);
+                }
 
                 let extent = swapchain.image_extent();
                 let aspect = extent[0] as f32 / extent[1] as f32;
